@@ -1,0 +1,98 @@
+﻿@page "/"
+
+@using BlazingPizza.Data
+@using BlazingPizza.Services
+@using BlazingPizza.Models
+
+@inject OrderState OrderState
+@inject HttpClient HttpClient
+@inject NavigationManager NavigationManager
+
+<PageTitle>Home</PageTitle>
+
+<div class="main">
+    <ul class="pizza-cards">
+        @if (specials != null)
+        {
+            @foreach (var special in specials)
+            {
+                <li @onclick="@(() => OrderState.ShowConfigurePizzaDialog(special))" style="background-image: url('@special.ImageUrl')">
+                    <div class="pizza-info">
+                        <span class="title">@special.Name</span>
+                        @special.Description
+                        <span class="price">@special.GetFormattedBasePrice()</span>
+                    </div>
+                </li>
+            }
+        }
+    </ul>
+
+    @if (OrderState.ShowingConfigureDialog)
+    {
+        <ConfigurePizzaDialog Pizza="OrderState.ConfiguringPizza"
+                              OnCancel="CancelConfigurePizza"
+                              OnConfirm="ConfirmConfigurePizza" />
+    }
+
+   
+</div>
+
+<div class="sidebar">
+    @if (order.Pizzas.Any())
+    {
+        <div class="order-contents">
+            <h2>Your order</h2>
+
+            @foreach (var configuredPizza in order.Pizzas)
+            {
+                <ConfiguredPizzaItem Pizza="configuredPizza" OnRemoved="@(() => RemoveConfiguredPizza(configuredPizza))" />
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-cart">Choose a pizza<br>to get started</div>
+    }
+
+    <div class="order-total @(order.Pizzas.Any() ? "" : "hidden")">
+        Total:
+        <span class="total-price">@order.GetFormattedTotalPrice()</span>
+        <button class="btn btn-warning" disabled="@(order.Pizzas.Count == 0)" @onclick="PlaceOrder">
+            Order >
+        </button>
+    </div>
+</div>
+
+<link rel="stylesheet" href="css/site.css" />
+@code {
+    List<PizzaSpecial> specials = new();
+
+    Order order => OrderState.Order;
+
+
+    protected override async Task OnInitializedAsync() =>
+        //{
+        specials = await HttpClient.GetFromJsonAsync<List<PizzaSpecial>>(NavigationManager.BaseUri + "specials");
+    //}
+
+    private async Task CancelConfigurePizza()
+    {
+        OrderState.CancelConfigurePizzaDialog();
+    }
+    private async Task ConfirmConfigurePizza()
+    {
+        OrderState.ConfirmConfigurePizzaDialog();
+    }
+
+    void RemoveConfiguredPizza(Pizza pizza)
+    {
+        order.Pizzas.Remove(pizza);
+    }
+
+    async Task PlaceOrder()
+    {
+        await HttpClient.PostAsJsonAsync("orders", order);
+        //order = new Order();
+    }
+
+}

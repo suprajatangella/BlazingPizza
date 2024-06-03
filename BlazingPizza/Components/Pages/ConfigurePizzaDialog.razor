@@ -1,0 +1,134 @@
+﻿
+@inject HttpClient HttpClient
+
+@using BlazingPizza.Data
+@using BlazingPizza.Services
+@using BlazingPizza.Models
+@inject NavigationManager NavigationManager
+
+@inject OrderState OrderState
+
+<div class="modal fade show" id="pizzaDialog" style="display:block" aria-modal="true">
+<div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="color:green">
+          <div>
+              <h2>@Pizza.Special.Name</h2>
+              <p class="text-gray-400 fs-6">@Pizza.Special.Description</p>
+          </div>
+      </div>
+         <div class="modal-body">
+            <form>
+                    <div>
+                        <label>Size:</label>
+                        <input type="range" min="@Pizza.MinimumSize" max="@Pizza.MaximumSize" step="1" @bind="Pizza.Size" @bind:event="oninput" />
+                        <span class="size-label">
+                            @(Pizza.Size)" (£@(Pizza.GetFormattedTotalPrice()))
+                        </span>
+                    </div>
+                    <div>
+                        <label>Extra Toppings:</label>
+                        @if (toppings is null)
+                        {
+                            <select class="custom-select" disabled>
+                                <option>(loading...)</option>
+                            </select>
+                        }
+                        else if (Pizza.Toppings.Count >= 6)
+                        {
+                            <div>(maximum reached)</div>
+                        }
+                        else
+                        {
+                            <select class="custom-select" @onchange="ToppingSelected">
+                                <option value="-1" disabled selected>(select)</option>
+                                @for (var i = 0; i < toppings.Count; i++)
+                                {
+                                    <option value="@i">@toppings[i].Name - (£@(toppings[i].GetFormattedPrice()))</option>
+                                }
+                            </select>
+                        }
+                    </div>
+
+                    <div class="toppings">
+                        @foreach (var topping in Pizza.Toppings)
+                        {
+                            if (topping?.Topping is not null)
+                            {
+                                <div class="topping">
+                                    @topping.Topping.Name
+                                    <span class="topping-price">@topping.Topping.GetFormattedPrice()</span>
+                                    <button type="button" class="delete-topping" @onclick="@(() => RemoveTopping(topping.Topping))">x</button>
+                                </div>
+                            }
+                        }
+                    </div>
+           </form>
+
+            </div>
+            <div class="modal-footer">
+                <input type="button" class="btn btn-secondary me-auto" @onclick="()=> CancelSelected()" value="Cancel" />
+              
+                <span class="text-center">
+                    Price: <span class="price">(£@(Pizza.GetFormattedTotalPrice()))</span>
+                </span>
+                <input type="button" class="btn btn-success ms-auto" @onclick="()=> OrderConfirmSelected()" value="Order >"></input>
+            </div>
+    </div>
+</div>
+</div>
+
+
+<link rel="stylesheet" href="css/site.css" />
+
+@code {
+
+    // toppings is only null while loading
+    List<Topping> toppings = null!;
+
+    [Parameter, EditorRequired]
+    public Pizza Pizza { get; set; }
+    [Parameter, EditorRequired]
+    public EventCallback OnCancel { get; set; }
+    [Parameter, EditorRequired]
+    public EventCallback OnConfirm { get; set; }
+
+    private async Task CancelSelected()
+    {
+        await OnCancel.InvokeAsync();
+    }
+
+    private async Task OrderConfirmSelected()
+    {
+        await OnConfirm.InvokeAsync();
+    }
+
+    protected async override Task OnInitializedAsync() =>
+    //{
+        //toppings = await HttpClient.GetFromJsonAsync<List<Topping>>("https://localhost:7242/toppings") ?? new();
+        toppings = await HttpClient.GetFromJsonAsync<List<Topping>>(NavigationManager.BaseUri + "toppings") ?? new();
+    //}
+
+    void ToppingSelected(ChangeEventArgs e)
+    {
+        if (int.TryParse((string?)e.Value, out var index) && index >= 0)
+        {
+            AddTopping(toppings[index]);
+        }
+    }
+
+    void AddTopping(Topping topping)
+    {
+        if (toppings is null) return;
+        if (Pizza.Toppings.Find(pt => pt.Topping == topping) is null)
+        {
+            Pizza.Toppings.Add(new PizzaTopping() { Topping = topping });
+        }
+    }
+
+    void RemoveTopping(Topping topping)
+    {
+        Pizza.Toppings.RemoveAll(pt => pt.Topping == topping);
+    }
+
+}
